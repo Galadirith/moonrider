@@ -1,30 +1,56 @@
 import {SWORD_OFFSET} from './beat-generator';
 const COLORS = require('../constants/colors.js');
 
-const auxObj3D = new THREE.Object3D();
-const bbox = new THREE.Box3();
-const otherBbox = new THREE.Box3();
-const collisionZThreshold = -1.65;
-
-const ANGLE_MAX_SUPER = THREE.Math.degToRad(10);
-const ANGLE_THRESHOLD = THREE.Math.degToRad(40);
-const CUT_THICKNESS = 0.02;
-const WARMUP_TIME = 2000;
-const WARMUP_ROTATION_CHANGE = 2 * Math.PI;
-
-const elasticEasing = getElasticEasing(1.33, 0.5);
-
-const DESTROYED_SPEED = 1.0;
-const ONCE = {once: true};
-const DESTROY_TIME = 1000;
-
 // Play sound and explode at reach to test sync.
 const SYNC_TEST = !!AFRAME.utils.getUrlParameter('synctest');
 const syncTestObject3D = new THREE.Object3D();
 const syncTestVector3 = new THREE.Vector3();
 
-const MINE = 'mine';
+const auxObj3D = new THREE.Object3D();
+const bbox = new THREE.Box3();
+const otherBbox = new THREE.Box3();
+const ANGLE_THRESHOLD = THREE.Math.degToRad(40);
+const CUT_DIRECTION_VECTORS = {
+  up: new THREE.Vector3(0, 1, 0),
+  down: new THREE.Vector3(0, -1, 0),
+  left: new THREE.Vector3(-1, 0, 0),
+  right: new THREE.Vector3(1, 0, 0),
+  upleft: new THREE.Vector3(-1, 1, 0).normalize(),
+  upright: new THREE.Vector3(1, 1, 0).normalize(),
+  downleft: new THREE.Vector3(-1, -1, 0).normalize(),
+  downright: new THREE.Vector3(1, -1, 0).normalize()
+};
+const DESTROY_TIME = 1000;
 const DOT = 'dot';
+const ELASTIC_EASING = getElasticEasing(1.33, 0.5);
+const HORIZONTAL_POSITIONS = {
+  left: -0.5,
+  middleleft: -0.18,
+  middleright: 0.18,
+  right: 0.5
+};
+const MINE = 'mine';
+const MODELS = {
+  arrowblue: 'blueBeatObjTemplate',
+  arrowred: 'redBeatObjTemplate',
+  dotblue: 'dotBlueObjTemplate',
+  dotred: 'dotRedObjTemplate',
+  mine: 'mineObjTemplate'
+};
+const ONCE = {once: true};
+const ROTATIONS = {
+  right: THREE.Math.degToRad(0),
+  upright: THREE.Math.degToRad(45),
+  up: THREE.Math.degToRad(90),
+  upleft: THREE.Math.degToRad(135),
+  left: THREE.Math.degToRad(180),
+  downleft: THREE.Math.degToRad(225),
+  down: THREE.Math.degToRad(270),
+  downright: THREE.Math.degToRad(315)
+};
+const WARMUP_TIME = 2000;
+const WARMUP_ROTATION_CHANGE = 2 * Math.PI;
+const WEAPON_COLORS = {right: 'blue', left: 'red'};
 
 AFRAME.registerComponent('beat-system', {
   schema: {
@@ -77,55 +103,6 @@ AFRAME.registerComponent('beat', {
     verticalPosition: {default: 'middle', oneOf: ['bottom', 'middle', 'top']}
   },
 
-  materialColor: {
-    blue: COLORS.BLUE,
-    red: COLORS.RED
-  },
-
-  cutColor: {
-    blue: '#fff',
-    red: '#fff'
-  },
-
-  models: {
-    arrowblue: 'blueBeatObjTemplate',
-    arrowred: 'redBeatObjTemplate',
-    dotblue: 'dotBlueObjTemplate',
-    dotred: 'dotRedObjTemplate',
-    mine: 'mineObjTemplate'
-  },
-
-  orientations: [180, 0, 270, 90, 225, 135, 315, 45, 0],
-
-  rotations: {
-    right: 0,
-    upright: 45,
-    up: 90,
-    upleft: 135,
-    left: 180,
-    downleft: 225,
-    down: 270,
-    downright: 315
-  },
-
-  horizontalPositions: {
-    left: -0.5,
-    middleleft: -0.18,
-    middleright: 0.18,
-    right: 0.5
-  },
-
-  cutDirectionVectors: {
-    up: new THREE.Vector3(0, 1, 0),
-    down: new THREE.Vector3(0, -1, 0),
-    left: new THREE.Vector3(-1, 0, 0),
-    right: new THREE.Vector3(1, 0, 0),
-    upleft: new THREE.Vector3(-1, 1, 0).normalize(),
-    upright: new THREE.Vector3(1, 1, 0).normalize(),
-    downleft: new THREE.Vector3(-1, -1, 0).normalize(),
-    downright: new THREE.Vector3(1, -1, 0).normalize()
-  },
-
   init: function () {
     this.beatBbox = new THREE.Box3();
     this.beatSystem = this.el.sceneEl.components['beat-system'];
@@ -140,10 +117,9 @@ AFRAME.registerComponent('beat', {
     this.returnToPoolTimer = DESTROY_TIME;
     this.rotationAxis = new THREE.Vector3();
     this.shadow = null;
-    this.superCutIdx = 0;
     this.startPositionZ = undefined;
+    this.superCutIdx = 0;
     this.warmupTime = 0;
-    this.weaponColors = {right: 'blue', left: 'red'};
 
     this.curveEl = document.getElementById('curve');
     this.curveFollowRig = document.getElementById('curveFollowRig');
@@ -224,7 +200,7 @@ AFRAME.registerComponent('beat', {
 
     // Warmup animation.
     if (this.warmupTime < WARMUP_TIME) {
-      const progress = elasticEasing(this.warmupTime / WARMUP_TIME);
+      const progress = ELASTIC_EASING(this.warmupTime / WARMUP_TIME);
       el.object3D.rotation.y = this.rotationStart + (progress * this.rotationChange);
       el.object3D.position.y = this.positionStart + (progress * this.positionChange);
       this.warmupTime += timeDelta;
@@ -260,8 +236,8 @@ AFRAME.registerComponent('beat', {
     const supercurve = this.curveEl.components.supercurve;
     supercurve.getPointAt(data.songPosition, el.object3D.position);
     supercurve.alignToCurve(data.songPosition, el.object3D);
-    el.object3D.position.x += this.horizontalPositions[data.horizontalPosition],
-    el.object3D.rotation.z = THREE.Math.degToRad(this.rotations[data.cutDirection]);
+    el.object3D.position.x += HORIZONTAL_POSITIONS[data.horizontalPosition],
+    el.object3D.rotation.z = ROTATIONS[data.cutDirection];
 
     // Shadow.
     this.shadow = this.el.sceneEl.components['pool__beat-shadow'].requestEntity();
@@ -270,8 +246,6 @@ AFRAME.registerComponent('beat', {
       this.shadow.object3D.position.copy(el.object3D.position);
       this.shadow.object3D.position.y += 0.05;
     }
-
-    // Set up opacity warmup.
 
     // Set up rotation warmup.
     this.rotationStart = el.object3D.rotation.y;
@@ -295,7 +269,7 @@ AFRAME.registerComponent('beat', {
 
     setObjModelFromTemplate(
       blockEl,
-      this.models[type !== 'mine' ? `${type}${this.data.color}` : type]);
+      MODELS[type !== 'mine' ? `${type}${this.data.color}` : type]);
 
     // Model is 0.29 size. We make it 1.0 so we can easily scale based on 1m size.
     blockEl.object3D.scale.set(1, 1, 1);
@@ -395,7 +369,6 @@ AFRAME.registerComponent('beat', {
 
   checkCollisions: function () {
     const data = this.data;
-    const weaponColors = this.weaponColors;
 
     if (!this.blockEl.getObject3D('mesh')) { return; }
 
@@ -437,7 +410,7 @@ AFRAME.registerComponent('beat', {
 
       // Wrong color hit.
       let goodCut = true;
-      if (swinging && this.data.color !== weaponColors[hand]) {
+      if (swinging && this.data.color !== WEAPON_COLORS[hand]) {
         const otherWeapon = i === 0 ? weaponEls[1] : weaponEls[0];
         if (!this.checkOtherWeaponCollision(otherWeapon, beatBbox)) {
           this.wrongHit(hand);
@@ -494,7 +467,7 @@ AFRAME.registerComponent('beat', {
     if (data.type === 'arrow') {
       // Wrong angle.
       const strokeBeatAngle = blade.strokeDirectionVector.angleTo(
-        this.cutDirectionVectors[data.cutDirection]);
+        CUT_DIRECTION_VECTORS[data.cutDirection]);
       if (strokeBeatAngle > ANGLE_THRESHOLD) {
         this.wrongHit(hand);
         return false;
@@ -530,24 +503,28 @@ AFRAME.registerComponent('beat', {
   /**
    * Blade scoring.
    */
-  calculateScoreBlade: function (bladeEl, angle) {
-    // 80% score on speed.
-    let SUPER_SCORE_SPEED = 10;
-    if (this.data.cutDirection === 'down') {
-      SUPER_SCORE_SPEED = 22;
-    }
-    const speed = bladeEl.closest('[blade]').components.blade.strokeSpeed;
-    let score = (Math.min((speed / SUPER_SCORE_SPEED) * 100, 100) / 100) * 80;
+  calculateScoreBlade: (function () {
+    const ANGLE_MAX_SUPER = THREE.Math.degToRad(10);
 
-    // 20% score on direction.
-    if (angle < ANGLE_MAX_SUPER) {
-      score += 20;
-    } else {
-      score += ((ANGLE_THRESHOLD - angle) / ANGLE_THRESHOLD) * 20;
-    }
+    return function (bladeEl, angle) {
+      // 80% score on speed.
+      let SUPER_SCORE_SPEED = 10;
+      if (this.data.cutDirection === 'down') {
+        SUPER_SCORE_SPEED = 22;
+      }
+      const speed = bladeEl.closest('[blade]').components.blade.strokeSpeed;
+      let score = (Math.min((speed / SUPER_SCORE_SPEED) * 100, 100) / 100) * 80;
 
-    this.score(Math.round(score));
-  },
+      // 20% score on direction.
+      if (angle < ANGLE_MAX_SUPER) {
+        score += 20;
+      } else {
+        score += ((ANGLE_THRESHOLD - angle) / ANGLE_THRESHOLD) * 20;
+      }
+
+      this.score(Math.round(score));
+    };
+  })(),
 
   /**
    * A possible To Do would be to score based on punch velocity and direction.
