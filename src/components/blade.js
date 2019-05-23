@@ -3,29 +3,22 @@
  */
 AFRAME.registerComponent('blade', {
   schema: {
-    enabled: {default: false},
-    strokeMinSpeed: {default: 0.002},
-    strokeMinDuration: {default: 40}
+    enabled: {default: false}
   },
 
   init: function () {
     const el = this.el;
     const data = this.data;
 
-    this.accumulatedDelta = 0;
-    this.accumulatedDistance = 0;
     this.bboxEl = this.el.querySelector('.bladeBbox');
     this.bladePosition = new THREE.Vector3();
     this.bladeTipPosition = new THREE.Vector3();
     this.bladeTipPreviousPosition = new THREE.Vector3();
     this.bladeVector = new THREE.Vector3();
     this.boundingBox = new THREE.Box3();
-    this.deltaSamples = [];
-    this.distanceSamples = [];
     this.rigEl = document.getElementById('curveFollowRig');
     this.strokeDirectionVector = new THREE.Vector3();
     this.strokeSpeed = 0;
-    this.swinging = false;
 
     this.bladeEl = this.el.querySelector('.blade');
   },
@@ -39,10 +32,10 @@ AFRAME.registerComponent('blade', {
   tick: function (time, delta) {
     if (!this.data.enabled) { return; }
     this.boundingBox.setFromObject(this.bboxEl.getObject3D('mesh'));
-    this.detectStroke(delta);
+    this.updateVelocity(delta);
   },
 
-  detectStroke: function (delta) {
+  updateVelocity: function (delta) {
     const data = this.data;
     const distanceSamples = this.distanceSamples;
     const rig = this.rigEl.object3D;
@@ -67,40 +60,6 @@ AFRAME.registerComponent('blade', {
     this.strokeDirectionVector.z = 0; this.strokeDirectionVector.normalize();
     this.strokeSpeed = distance / (delta / 1000);
 
-    // Sample distance of the last 5 frames.
-    if (this.distanceSamples.length === 5) {
-      this.accumulatedDistance -= this.distanceSamples.shift();
-      this.accumulatedDelta -= this.deltaSamples.shift();
-    }
-    this.distanceSamples.push(distance);
-    this.accumulatedDistance += distance;
-
-    this.deltaSamples.push(delta);
-    this.accumulatedDelta += delta;
-
-    // Filter out blade movements that are too slow. Too slow is considered wrong hit.
-    if (this.accumulatedDistance / this.accumulatedDelta > this.data.strokeMinSpeed) {
-      // This filters out unintentional swings.
-      if (!this.swinging) {
-        this.swinging = true;
-        this.strokeDuration = 0;
-      }
-      this.strokeDuration += delta;
-      this.endStroke();
-    } else {
-      this.endStroke();
-    }
-
     this.bladeTipPreviousPosition.copy(this.bladeTipPosition);
-  },
-
-  endStroke: function () {
-    if (!this.swinging || this.strokeDuration < this.data.strokeMinDuration) { return; }
-    this.swinging = false;
-    // Stroke finishes. Reset swinging state.
-    this.accumulatedDistance = 0;
-    this.accumulatedDelta = 0;
-    for (let i = 0; i < this.distanceSamples.length; i++) { this.distanceSamples[i] = 0; }
-    for (let i = 0; i < this.deltaSamples.length; i++) { this.deltaSamples[i] = 0; }
   }
 });
