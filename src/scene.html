@@ -40,7 +40,7 @@
   pool__plume-dot-blue="mixin: dotBluePlume; size: 30; container: #beatContainer; dynamic: true"
   pool__plume-dot-red="mixin: dotRedPlume; size: 30; container: #beatContainer; dynamic: true"
   pool__plume-mine="mixin: minePlume; size: 12; container: #beatContainer; dynamic: true"
-  pool__beat-shadow="mixin: beatShadow; size: 100; container: #beatContainer; dynamic: true"
+  pool__beat-shadow="mixin: beatShadow; size: 100; container: #beatShadows; dynamic: true"
   pool__beat-broken-blue="mixin: blueBeatBroken; size: 10; container: #rigContainer; dynamic: true"
   pool__beat-broken-red="mixin: redBeatBroken; size: 10; container: #rigContainer; dynamic: true"
   pool__beat-broken-blue-dot="mixin: blueDotBroken; size: 10; container: #rigContainer; dynamic: true"
@@ -108,7 +108,10 @@
   <a-entity
     id="beatContainer"
     beat-hit-sound
-    bind__visible="isPlaying"></a-entity>
+    bind__visible="isPlaying">
+  </a-entity>
+
+  <a-entity id="beatShadows" bind__visible="isPlaying" beat-shadows></a-entity>
 
   <a-entity id="curveFollowRig"
     bind__curve-follow-rig-reset="isVictory: isVictory"

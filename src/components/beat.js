@@ -59,17 +59,21 @@ AFRAME.registerComponent('beat-system', {
     isLoading: {default: false}
   },
 
+  update: function (oldData) {
+    if (oldData.isLoading && !this.data.isLoading) {
+      this.updateVerticalPositions();
+    }
+  },
+
+  play: function () {
+    this.shadowPool = document.getElementById('beatShadows').components['beat-shadows'];
+  },
+
   // Will be overridden.
   verticalPositions: {
     bottom: 0.95,
     middle: 1.35,
     top: 1.75
-  },
-
-  update: function (oldData) {
-    if (oldData.isLoading && !this.data.isLoading) {
-      this.updateVerticalPositions();
-    }
   },
 
   updateVerticalPositions: function () {
@@ -84,6 +88,14 @@ AFRAME.registerComponent('beat-system', {
                                              BOTTOM_HEIGHT + MARGIN + offset);
     this.verticalPositions.top = Math.max(MIN_BOTTOM_HEIGHT + MARGIN * 2,
                                           BOTTOM_HEIGHT + (MARGIN * 2) + offset);
+  },
+
+  requestShadow: function (position) {
+    this.shadowPool.requestShadow(position);
+  },
+
+  returnShadow: function (uuid) {
+    this.shadowPool.returnShadow(uuid);
   }
 });
 
@@ -240,12 +252,7 @@ AFRAME.registerComponent('beat', {
     el.object3D.rotation.z = ROTATIONS[data.cutDirection];
 
     // Shadow.
-    this.shadow = this.el.sceneEl.components['pool__beat-shadow'].requestEntity();
-    if (this.shadow) {
-      this.shadow.object3D.visible = true;
-      this.shadow.object3D.position.copy(el.object3D.position);
-      this.shadow.object3D.position.y += 0.05;
-    }
+    this.shadow = this.beatSystem.requestShadow(el.object3D.position);
 
     // Set up rotation warmup.
     this.rotationStart = el.object3D.rotation.y;
@@ -340,8 +347,7 @@ AFRAME.registerComponent('beat', {
         this.broken.emit('explode', this.explodeEventDetail, false);
       }
       if (this.shadow) {
-        this.el.sceneEl.components['pool__beat-shadow'].returnEntity(this.shadow);
-        this.shadow.object3D.visible = false;
+        this.beatSystem.returnShadow(this.shadow);
         this.shadow = null;
       }
 
@@ -361,8 +367,7 @@ AFRAME.registerComponent('beat', {
       this.el.sceneEl.components[this.poolName].returnEntity(this.el);
     }
     if (this.shadow) {
-      this.el.sceneEl.components['pool__beat-shadow'].returnEntity(this.shadow);
-      this.shadow.object3D.visible = false;
+      this.beatSystem.returnShadow(this.shadow);
       this.shadow = null;
     }
   },
